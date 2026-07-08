@@ -84,8 +84,17 @@ func assertAnchor(t *testing.T, sql, wantAnchor, buggyAnchor string) {
 
 func TestInstantRateOffsetAnchor_RowsFastPath(t *testing.T) {
 	rq := lowerForTest(t, `rate(http_requests_total[5m] offset 30m)`, offsetInstantRenderParams())
-	if !strings.Contains(rq.SQL, "deltaSumTimestamp(") {
-		t.Fatalf("expected the instant rows fast path (deltaSumTimestamp), got:\n%s", rq.SQL)
+	// Post-F25 (#41) the instant rows fast path is reset-aware: it collates
+	// per series id with a lagInFrame window and a counter-reset-sensitive
+	// delta sum, replacing the earlier deltaSumTimestamp primitive (which
+	// contributed 0 on a decrease). Assert that reset-aware fast-path shape.
+	for _, marker := range []string{
+		"lagInFrame(value, 1, nan) OVER (PARTITION BY id, final_tags ORDER BY timestamp)",
+		"sum(if(isNaN(value) OR isNaN(prev_value), toFloat64(0), if(value < prev_value, value, value - prev_value)))",
+	} {
+		if !strings.Contains(rq.SQL, marker) {
+			t.Fatalf("expected the reset-aware instant rows fast path marker %q, got:\n%s", marker, rq.SQL)
+		}
 	}
 	assertAnchor(t, rq.SQL, instantShiftedAnchor, instantUnshiftedAnchor)
 	// Output timestamp stays at the raw evaluation time.
