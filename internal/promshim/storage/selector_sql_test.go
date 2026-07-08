@@ -556,7 +556,7 @@ func TestBuildRangeMatrixSelectorQuerySQLGroupsWindowsByIDUnderNarrowedTags(t *t
 	selector.RequireFullTags = false
 	selector.RequiredTagLabels = []string{"mode"}
 
-	sql, _, err := BuildInstantSelectorQuerySQL(QueryConfig{Database: "observability", Table: "prometheus"}, selector, -3600000, 0)
+	sql, _, err := BuildInstantSelectorQuerySQL(QueryConfig{Database: "observability", Table: "prometheus"}, selector, -3600000, 0, 0)
 	if err != nil {
 		t.Fatalf("expected range matrix selector SQL, got error: %v", err)
 	}
