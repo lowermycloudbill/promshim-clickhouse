@@ -165,4 +165,3 @@ func TestLocalRatePlanSubqueryAtWithOffsetShiftsExtrapolationAnchor(t *testing.T
 		t.Errorf("subquery rate with @ + offset: expected %.3f, got %.3f", anchorTestRateSec, got)
 	}
 }
-

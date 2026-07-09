@@ -3908,7 +3908,7 @@ func TestAlignLocalSubqueryStepStart(t *testing.T) {
 // contain exactly the step-aligned points inside the left-open window
 // (t-range, t], matching Prometheus.
 func TestLocalSubqueryPlanMatchesPrometheusPointCounts(t *testing.T) {
-	const alignedEval = 3600 // seconds; multiple of 1m and 5m
+	const alignedEval = 3600       // seconds; multiple of 1m and 5m
 	anchor1810 := int64(1_810_000) // milliseconds; NOT a multiple of 5m
 	for _, tc := range []struct {
 		name      string

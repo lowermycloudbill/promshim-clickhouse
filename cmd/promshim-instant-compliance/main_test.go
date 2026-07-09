@@ -39,9 +39,7 @@ func TestValuesClose(t *testing.T) {
 
 func vectorEnvelope(samples []map[string]any) string {
 	rows := make([]map[string]any, 0, len(samples))
-	for _, s := range samples {
-		rows = append(rows, s)
-	}
+	rows = append(rows, samples...)
 	payload := map[string]any{
 		"status": "success",
 		"data": map[string]any{

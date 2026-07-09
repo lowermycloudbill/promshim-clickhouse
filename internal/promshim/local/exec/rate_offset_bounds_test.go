@@ -70,4 +70,3 @@ func TestApplyIncreaseInstantWithBoundsOffsetWindow(t *testing.T) {
 		t.Errorf("expected increase %.3f, got %.3f", expected, got)
 	}
 }
-
