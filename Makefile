@@ -1,4 +1,4 @@
-.PHONY: build test test-report fuzz-smoke integration-test integration-test-report vet race test-race fmt fmt-check tidy tidy-check lint script-check config-check pre-commit check hooks-install hooks-uninstall harness compliance bench sweep sweep-smoke sweep-estimate-heavy bench-status release-check release-snapshot
+.PHONY: build test test-report fuzz-smoke integration-test integration-test-report vet race test-race fmt fmt-check tidy tidy-check lint script-check config-check pre-commit check hooks-install hooks-uninstall harness compliance bench sweep sweep-smoke sweep-estimate-heavy bench-status release-check release-snapshot docker-publish docker-require-credentials
 
 GO ?= go
 GOLANGCI_LINT ?= golangci-lint
@@ -150,3 +150,39 @@ release-check:
 
 release-snapshot:
 	docker run --rm -v "$(CURDIR):/src" -w /src -v /var/run/docker.sock:/var/run/docker.sock goreleaser/goreleaser:latest release --snapshot --clean --skip=publish
+
+# Build the promshim image and publish it to Docker Hub cloudadminio, gated on
+# the full `check` (fmt/tidy/lint/script/config + build + unit tests + vet).
+# Credentials come from the environment or inline make args:
+#   DOCKERHUB_USERNAME=me DOCKERHUB_TOKEN=dckr_pat_xxx make docker-publish
+#   make docker-publish DOCKERHUB_USERNAME=me DOCKERHUB_TOKEN=dckr_pat_xxx
+# Override the image/tags/platforms as needed, e.g.:
+#   make docker-publish DOCKER_TAGS="v0.6.0-lab $$(git rev-parse --short HEAD)"
+DOCKER_IMAGE ?= cloudadminio/promshim-clickhouse
+DOCKER_PLATFORMS ?= linux/amd64,linux/arm64
+DOCKER_BUILDER ?= promshim-multiarch
+DOCKER_SHA := $(shell git rev-parse --short HEAD)
+DOCKER_COMMIT := $(shell git rev-parse HEAD)
+DOCKER_DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+DOCKER_TAGS ?= cloudadmin $(DOCKER_SHA)
+DOCKERHUB_USERNAME ?=
+DOCKERHUB_TOKEN ?=
+
+docker-require-credentials:
+	@test -n "$(DOCKERHUB_USERNAME)" || { echo "DOCKERHUB_USERNAME is required (set it in the environment or inline: make docker-publish DOCKERHUB_USERNAME=...)" >&2; exit 2; }
+	@test -n "$(DOCKERHUB_TOKEN)" || { echo "DOCKERHUB_TOKEN is required (set it in the environment or inline: make docker-publish DOCKERHUB_TOKEN=...)" >&2; exit 2; }
+
+docker-publish: docker-require-credentials check
+	@docker buildx inspect $(DOCKER_BUILDER) >/dev/null 2>&1 || docker buildx create --name $(DOCKER_BUILDER) --driver docker-container >/dev/null
+	@printf '%s' "$(DOCKERHUB_TOKEN)" | docker login -u "$(DOCKERHUB_USERNAME)" --password-stdin
+	docker buildx build --builder $(DOCKER_BUILDER) \
+		--platform $(DOCKER_PLATFORMS) \
+		$(foreach tag,$(DOCKER_TAGS),--tag $(DOCKER_IMAGE):$(tag)) \
+		--build-arg VERSION=cloudadmin-$(DOCKER_SHA) \
+		--build-arg COMMIT=$(DOCKER_COMMIT) \
+		--build-arg DATE=$(DOCKER_DATE) \
+		--provenance=false \
+		--file Dockerfile \
+		--push \
+		.
+	@docker logout >/dev/null 2>&1 || true
