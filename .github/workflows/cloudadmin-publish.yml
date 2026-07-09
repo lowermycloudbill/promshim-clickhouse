@@ -1,9 +1,12 @@
 name: cloudadmin publish
 
-# Runs the fast Go gate (fmt/tidy/lint/script/config + build + vet + unit tests
-# + race) on every push to the cloudadmin integration branch, then builds and
-# publishes the promshim image to Docker Hub cloudadminio only if the gate is
-# green. Requires DOCKERHUB_USERNAME and DOCKERHUB_TOKEN repo secrets.
+# On every push to the cloudadmin integration branch: run the fast Go gate
+# (fmt/tidy/lint/script/config checks + build + vet + unit tests + race) and,
+# only if it passes, build and publish the promshim image to Docker Hub
+# cloudadminio. Gate and publish live in one job on purpose: steps run
+# sequentially on a single runner, so the publish steps are reached only when
+# every gate step succeeds, and it avoids scheduling a second dependent runner.
+# Requires DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets (repo or org-visible).
 
 on:
   push:
@@ -19,8 +22,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  checks:
-    name: Gate
+  build-and-publish:
+    name: Gate & publish
     runs-on: ubuntu-latest
     env:
       GOLANGCI_LINT_VERSION: v2.11.4
@@ -53,14 +56,7 @@ jobs:
       - name: Run unit tests with race detector
         run: make test-race
 
-  publish:
-    name: Build & publish image
-    runs-on: ubuntu-latest
-    needs: checks
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-
+      # Everything below only runs if every gate step above succeeded.
       - name: Compute image metadata
         id: meta
         run: |
